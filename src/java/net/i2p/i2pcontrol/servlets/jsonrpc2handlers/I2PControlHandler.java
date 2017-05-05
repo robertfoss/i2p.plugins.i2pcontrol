@@ -12,7 +12,7 @@ import net.i2p.i2pcontrol.security.SecurityManager;
 import net.i2p.i2pcontrol.servlets.configuration.ConfigurationManager;
 import net.i2p.router.RouterContext;
 import net.i2p.util.Log;
-import org.eclipse.jetty.server.ssl.SslSocketConnector;
+import org.eclipse.jetty.server.ServerConnector;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -102,7 +102,7 @@ public class I2PControlHandler implements RequestHandler {
                                    req.getID());
                     }
                     try {
-                        SslSocketConnector ssl = I2PControlController.buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"), newPort);
+                        ServerConnector ssl = I2PControlController.buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"), newPort);
                         I2PControlController.clearListeners();
                         I2PControlController.replaceListener(ssl);
 
@@ -115,7 +115,7 @@ public class I2PControlHandler implements RequestHandler {
                     } catch (Exception e) {
                         try {
                             _conf.setConf("i2pcontrol.listen.port", oldPort);
-                            SslSocketConnector ssl = I2PControlController.buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"), oldPort);
+                            ServerConnector ssl = I2PControlController.buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"), oldPort);
                             I2PControlController.clearListeners();
                             I2PControlController.replaceListener(ssl);
                         } catch (Exception e2) {
@@ -159,7 +159,7 @@ public class I2PControlHandler implements RequestHandler {
                                    req.getID());
                     }
                     try {
-                        SslSocketConnector ssl = I2PControlController.buildSslListener(inParam, _conf.getConf("i2pcontrol.listen.port", 7650));
+                        ServerConnector ssl = I2PControlController.buildSslListener(inParam, _conf.getConf("i2pcontrol.listen.port", 7650));
                         I2PControlController.clearListeners();
                         I2PControlController.replaceListener(ssl);
                         _conf.setConf("i2pcontrol.listen.address", inParam);
@@ -170,7 +170,7 @@ public class I2PControlHandler implements RequestHandler {
                     } catch (Exception e) {
                         _conf.setConf("i2pcontrol.listen.address", oldAddress);
                         try {
-                            SslSocketConnector ssl = I2PControlController.buildSslListener(inParam, _conf.getConf("i2pcontrol.listen.port", 7650));
+                            ServerConnector ssl = I2PControlController.buildSslListener(inParam, _conf.getConf("i2pcontrol.listen.port", 7650));
                             I2PControlController.clearListeners();
                             I2PControlController.replaceListener(ssl);
                         } catch (Exception e2) {

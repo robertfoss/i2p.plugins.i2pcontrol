@@ -1,0 +1,6 @@
+*.su3
+*.xpi2p
+plugin/**
+scripts/build.number
+src/build/**
+

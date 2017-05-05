@@ -25,8 +25,14 @@ import net.i2p.util.Log;
 
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ssl.SslSocketConnector;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletHandler;
+import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.SecureRequestCustomizer;
+import org.eclipse.jetty.http.HttpVersion;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,7 +56,7 @@ public class I2PControlController {
     private static String _pluginDir = "";
     private static ConfigurationManager _conf;
     private static SecurityManager _secMan;
-    private static Server _server;
+    private static Server _server = new Server();
 
 
     public static void main(String args[]) {
@@ -79,8 +85,9 @@ public class I2PControlController {
         I2PAppContext.getGlobalContext().logManager().getLog(JSONRPC2Servlet.class).setMinimumPriority(Log.DEBUG);
 
         try {
-            Connector ssl = buildDefaultListenter();
+            ServerConnector ssl = buildDefaultListenter();
             _server = buildServer(ssl);
+            _log.info("I2PControl started");
         } catch (IOException e) {
             _log.error("Unable to add listener " + _conf.getConf("i2pcontrol.listen.address", "127.0.0.1") + ":" + _conf.getConf("i2pcontrol.listen.port", 7560) + " - " + e.getMessage());
         } catch (ClassNotFoundException e) {
@@ -90,7 +97,7 @@ public class I2PControlController {
         } catch (IllegalAccessException e) {
             _log.error("Illegal access: " + e.getMessage());
         } catch (Exception e) {
-            _log.error("Unable to start jetty server: " + e.getMessage());
+            _log.error("Unable to start jetty server: ", e);
         }
     }
 
@@ -101,8 +108,8 @@ public class I2PControlController {
      * @return Server - A new server built from current configuration.
      * @throws UnknownHostException
      */
-    public static Connector buildDefaultListenter() throws UnknownHostException {
-        SslSocketConnector ssl = buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"),
+    public static ServerConnector buildDefaultListenter() throws UnknownHostException {
+        ServerConnector ssl = buildSslListener(_conf.getConf("i2pcontrol.listen.address", "127.0.0.1"),
                                  _conf.getConf("i2pcontrol.listen.port", 7650));
         return ssl;
     }
@@ -116,14 +123,15 @@ public class I2PControlController {
      * @throws InstantiationException
      * @throws IllegalAccessException
      */
-    public static Server buildServer(Connector ssl) throws UnknownHostException, Exception, InstantiationException, IllegalAccessException {
-        Server server = new Server();
+    public static Server buildServer(ServerConnector ssl) throws UnknownHostException, Exception, InstantiationException, IllegalAccessException {
+        Server server = _server;
         server.addConnector(ssl);
 
         ServletHandler sh = new ServletHandler();
         sh.addServletWithMapping(net.i2p.i2pcontrol.servlets.JSONRPC2Servlet.class, "/");
-        server.getServer().setHandler(sh);
+        server.setHandler(sh);
         server.start();
+        server.join();
 
         return server;
     }
@@ -136,25 +144,29 @@ public class I2PControlController {
      * @return - Newly created listener
      * @throws UnknownHostException
      */
-    public static SslSocketConnector buildSslListener(String address, int port) throws UnknownHostException {
+    public static ServerConnector buildSslListener(String address, int port) throws UnknownHostException {
         int listeners = 0;
         if (_server != null) {
             listeners = _server.getConnectors().length;
         }
 
-        SslSocketConnector ssl = new SslSocketConnector();
-        ssl.setProvider(_secMan.getSecurityProvider());
-        //ssl.setCipherSuites(_secMan.getSupprtedSSLCipherSuites()); Removed in Jetty 5->6 port.
-        ssl.setHost(address);
-        ssl.setPort(port);
-        ssl.setWantClientAuth(false); // Don't care about client authentication.
-        ssl.setPassword(KeyStoreProvider.DEFAULT_KEYSTORE_PASSWORD);
-        ssl.setKeyPassword(KeyStoreProvider.DEFAULT_KEYSTORE_PASSWORD);
-        ssl.setKeystoreType(KeyStore.getDefaultType());
-        ssl.setKeystore(KeyStoreProvider.getKeyStoreLocation());
-        ssl.setName("SSL Listener-" + ++listeners);
+        SslContextFactory sslContextFactory = new SslContextFactory();
+        sslContextFactory.setKeyStorePath(KeyStoreProvider.getKeyStoreLocation());
+        sslContextFactory.setKeyStorePassword(KeyStoreProvider.DEFAULT_KEYSTORE_PASSWORD);
+        sslContextFactory.setKeyStoreType(KeyStore.getDefaultType());
+        sslContextFactory.setProvider(_secMan.getSecurityProvider());
 
-        return ssl;
+        HttpConfiguration http_config = new HttpConfiguration();
+        http_config.addCustomizer(new SecureRequestCustomizer());
+
+        ServerConnector https = new ServerConnector(_server,
+            new SslConnectionFactory(sslContextFactory,HttpVersion.HTTP_1_1.asString()),
+            new HttpConnectionFactory(http_config));
+        https.setHost(address);
+        https.setPort(port);
+        https.setName("SSL Listener-" + ++listeners);
+
+        return https;
     }
 
 
@@ -166,7 +178,7 @@ public class I2PControlController {
      * @param listener
      * @throws Exception
      */
-    public static void replaceListener(Connector listener) throws Exception {
+    public static void replaceListener(ServerConnector listener) throws Exception {
         if (_server != null) {
             stopServer();
         }
@@ -206,6 +218,7 @@ public class I2PControlController {
                 _server.destroy();
                 _server = null;
             }
+            _log.info("I2PControl stopped");
         } catch (Exception e) {
             _log.error("Stopping server" + e);
         }
